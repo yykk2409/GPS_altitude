@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>階数メーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#d5dadc; --panel:#eef1f1; --ink:#1b2a30; --sub:#5a6b72; --line:#b5bec2;
+  --win:#1c2326; --amber:#ffb020; --amber-dim:rgba(255,176,32,.55); --band:rgba(255,176,32,.28);
+  --ctl:#1b2a30; --ctl-ink:#eef1f1; --err:#b3361b;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171a; --panel:#1c2327; --ink:#e6ecee; --sub:#93a3aa; --line:#33414a;
+    --win:#080b0c; --ctl:#e6ecee; --ctl-ink:#12171a; --err:#ff8a6b; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12171a; --panel:#1c2327; --ink:#e6ecee; --sub:#93a3aa; --line:#33414a;
+  --win:#080b0c; --ctl:#e6ecee; --ctl-ink:#12171a; --err:#ff8a6b; color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:inherit}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  line-height:1.6;
+}
+main{max-width:460px; margin:0 auto; padding:20px 16px 40px}
+header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px}
+h1{font-size:1.15rem; margin:0; font-weight:700; letter-spacing:.02em}
+button,select,input{font:inherit; color:inherit}
+.btn{
+  background:var(--ctl); color:var(--ctl-ink); border:0; border-radius:8px;
+  padding:10px 18px; font-weight:700; cursor:pointer; min-height:44px;
+}
+.btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
+.btn:disabled{opacity:.45; cursor:default}
+:focus-visible{outline:3px solid var(--amber); outline-offset:2px}
+
+.stage{display:grid; grid-template-columns:1fr 112px; gap:12px}
+.win{
+  background:var(--win); border-radius:10px; height:300px; position:relative;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border:1px solid var(--line);
+}
+.num{
+  font-family:"Barlow Condensed","Arial Narrow",sans-serif; font-weight:600;
+  color:var(--amber); font-size:9.5rem; line-height:1; letter-spacing:.01em;
+  text-shadow:0 0 18px rgba(255,176,32,.35);
+  display:flex; align-items:baseline; gap:6px;
+}
+.num small{font-family:"Zen Kaku Gothic New",sans-serif; font-size:1.6rem; font-weight:700; letter-spacing:0}
+.win .maybe{
+  position:absolute; left:0; right:0; bottom:16px; text-align:center;
+  color:var(--amber-dim); font-size:.9rem; padding:0 10px;
+}
+.win .state{
+  position:absolute; left:14px; top:12px; color:var(--amber-dim); font-size:.8rem;
+}
+
+.shaft{
+  position:relative; height:300px; overflow:hidden; border-radius:10px;
+  background:var(--panel); border:1px solid var(--line);
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18%,#000 82%,transparent 100%);
+          mask-image:linear-gradient(to bottom,transparent 0,#000 18%,#000 82%,transparent 100%);
+}
+.shaft .row{
+  position:absolute; left:0; right:0; top:0; height:44px;
+  display:flex; align-items:center; gap:10px; padding:0 12px;
+  transition:transform .9s cubic-bezier(.2,.7,.2,1);
+  color:var(--sub); font-family:"Barlow Condensed",sans-serif; font-weight:600; font-size:1.25rem;
+}
+.shaft .row i{display:block; width:28px; height:2px; background:var(--line)}
+.shaft .row.on{color:var(--ink)}
+.shaft .row.on i{background:var(--ink)}
+.shaft .band{
+  position:absolute; left:0; right:0; top:50%; background:var(--band);
+  transform:translateY(-50%); transition:height .9s ease; pointer-events:none;
+}
+.shaft .car{
+  position:absolute; right:10px; top:50%; width:0; height:0; margin-top:-8px;
+  border-left:14px solid var(--amber); border-top:8px solid transparent; border-bottom:8px solid transparent;
+  transform:rotate(180deg);
+}
+
+.readouts{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0}
+.readouts div{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+.readouts dt{font-size:.75rem; color:var(--sub); margin:0}
+.readouts dd{margin:2px 0 0; font-size:1.15rem; font-weight:700; font-variant-numeric:tabular-nums}
+dl{margin:0}
+
+#msg{min-height:1.6em; color:var(--err); font-size:.9rem; margin:0 0 12px}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:12px}
+.card h2{font-size:.95rem; margin:0 0 10px}
+.field{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px}
+.field label{font-size:.9rem; min-width:7.5em}
+select,input[type=number]{
+  background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-height:44px;
+}
+input[type=number]{width:6em}
+.hint{font-size:.82rem; color:var(--sub); margin:6px 0 0}
+.demo{display:none; margin-top:10px}
+.demo.on{display:block}
+.demo input[type=range]{width:100%}
+@media (prefers-reduced-motion: reduce){
+  .shaft .row,.shaft .band{transition:none}
+}
+@media (max-width:360px){ .num{font-size:7.5rem} }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>階数メーター</h1>
+    <button class="btn" id="toggle" type="button">計測を開始</button>
+  </header>
+
+  <section class="stage" aria-label="現在の階数">
+    <div class="win" aria-live="polite">
+      <span class="state" id="state">待機中</span>
+      <div class="num"><span id="floorNum">–</span><small id="floorUnit"></small></div>
+      <div class="maybe" id="maybe"></div>
+    </div>
+    <div class="shaft" id="shaft" aria-hidden="true">
+      <div class="band" id="band" style="height:0"></div>
+      <div class="car"></div>
+    </div>
+  </section>
+
+  <dl class="readouts">
+    <div><dt>推定高度</dt><dd id="alt">–</dd></div>
+    <div><dt>1階からの差</dt><dd id="rel">–</dd></div>
+    <div><dt>誤差の目安</dt><dd id="acc">–</dd></div>
+  </dl>
+
+  <p id="msg" role="status"></p>
+
+  <section class="card">
+    <h2>階数を合わせる</h2>
+    <div class="field">
+      <label for="calFloor">いまいる階</label>
+      <select id="calFloor"></select>
+      <button class="btn" id="calBtn" type="button">この階で校正</button>
+    </div>
+    <p class="hint">誤差の目安が小さくなってから押すと、その後の階数がずれにくくなります。</p>
+  </section>
+
+  <section class="card">
+    <h2>設定</h2>
+    <div class="field">
+      <label for="h">1階分の高さ</label>
+      <input id="h" type="number" min="2.5" max="6" step="0.1" inputmode="decimal"> <span>m</span>
+    </div>
+    <p class="hint">マンションは約2.8〜3m、オフィスや商業ビルは約3.5〜4.5mが目安です。</p>
+    <div class="field" style="margin-top:12px">
+      <label for="demoChk">模擬データで試す</label>
+      <input id="demoChk" type="checkbox">
+    </div>
+    <div class="demo" id="demo">
+      <input id="demoRange" type="range" min="-8" max="80" step="0.2" value="10" aria-label="模擬の高度">
+      <p class="hint">スライダーで高度を動かして、表示の動きを確認できます。</p>
+    </div>
+  </section>
+
+  <p class="hint">GPSの高度は端末によって精度が大きく違います。iPhoneは気圧計を併用するため比較的安定し、Androidや PC は数十m ずれることがあります。階数は目安として使ってください。</p>
+</main>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var KEY = 'floormeter:v1';
+
+  /* ---- 設定の保存 ---- */
+  function load(){
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; }
+  }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch(e){}
+  }
+  var cfg = Object.assign({ h: 3.5, a: null, k: 0 }, load());
+  if (!(cfg.h >= 2.5 && cfg.h <= 6)) cfg.h = 3.5;
+
+  /* ---- 状態 ---- */
+  var kf = { x: null, P: 0, t: 0 };   // 高度のカルマンフィルタ
+  var curK = null;                    // 表示中の階インデックス（0 = 1階）
+  var watchId = null, wake = null, demo = false;
+
+  function label(k){ return k >= 0 ? (k + 1) + 'F' : 'B' + (-k); }
+
+  function msg(t){ $('msg').textContent = t || ''; }
+
+  /* ---- フィルタ ---- */
+  function filter(z, acc, t){
+    var R = Math.pow(Math.max(acc == null ? 15 : acc, 2), 2);
+    if (kf.x === null){ kf.x = z; kf.P = R; kf.t = t; return; }
+    var dt = Math.min(Math.max((t - kf.t) / 1000, 0), 30);
+    kf.t = t;
+    kf.P += 0.25 * dt;                 // 人が階を移動する分の不確かさ
+    var K = kf.P / (kf.P + R);
+    kf.x += K * (z - kf.x);
+    kf.P = Math.max((1 - K) * kf.P, 0.25);
+  }
+
+  /* ---- 表示 ---- */
+  var rows = new Map();
+  var SLOT = 44, CENTER = 150;
+
+  function place(el, k, kc){
+    var y = CENTER - (k - kc) * SLOT - SLOT / 2;
+    el.style.transform = 'translateY(' + y.toFixed(1) + 'px)';
+  }
+
+  function drawShaft(kc, sdFloors){
+    var shaft = $('shaft');
+    var lo = Math.floor(kc) - 4, hi = Math.ceil(kc) + 4;
+    rows.forEach(function(el, k){
+      if (k < lo || k > hi){ el.remove(); rows.delete(k); }
+    });
+    for (var k = lo; k <= hi; k++){
+      var el = rows.get(k);
+      if (!el){
+        el = document.createElement('div');
+        el.className = 'row';
+        el.innerHTML = '<i></i><span></span>';
+        el.lastChild.textContent = label(k);
+        el.style.transition = 'none';
+        shaft.appendChild(el);
+        rows.set(k, el);
+        place(el, k, kc);
+        void el.offsetWidth;
+        el.style.transition = '';
+      } else {
+        place(el, k, kc);
+      }
+      el.classList.toggle('on', k === curK);
+    }
+    var h = Math.min(Math.max(sdFloors * 2 * SLOT, 6), 290);
+    $('band').style.height = h.toFixed(0) + 'px';
+  }
+
+  function render(){
+    if (kf.x === null) return;
+    var alt = kf.x, sd = Math.sqrt(kf.P);
+    $('alt').textContent = alt.toFixed(1) + ' m';
+    $('acc').textContent = '±' + sd.toFixed(1) + ' m';
+
+    if (cfg.a === null){
+      $('floorNum').textContent = '–';
+      $('floorUnit').textContent = '';
+      $('rel').textContent = '未校正';
+      $('maybe').textContent = '「いまいる階」を選んで校正してください';
+      $('state').textContent = '高度を取得中';
+      return;
+    }
+
+    var kc = (alt - cfg.a) / cfg.h + cfg.k;
+    var k = Math.round(kc);
+    if (curK === null || Math.abs(kc - curK) > 0.65) curK = k;
+
+    var rel = kc * cfg.h;
+    $('rel').textContent = (rel >= 0 ? '+' : '−') + Math.abs(rel).toFixed(1) + ' m';
+
+    if (curK >= 0){ $('floorNum').textContent = String(curK + 1); $('floorUnit').textContent = '階'; }
+    else { $('floorNum').textContent = 'B' + (-curK); $('floorUnit').textContent = ''; }
+
+    var sdF = sd / cfg.h;
+    var lo = Math.round(kc - sdF), hi = Math.round(kc + sdF);
+    if (lo === hi){
+      $('maybe').textContent = '誤差を含めても同じ階です';
+    } else {
+      $('maybe').textContent = label(lo).replace('F','階') + '〜' + label(hi).replace('F','階') + ' の可能性があります';
+    }
+    $('state').textContent = demo ? '模擬データ' : '計測中';
+    drawShaft(kc, sdF);
+  }
+
+  /* ---- 位置情報 ---- */
+  function onPos(p){
+    if (demo) return;
+    var a = p.coords.altitude;
+    if (a == null){
+      msg('この端末は高度を返していません。スマートフォンのGPSをオンにして屋外や窓際でお試しください。');
+      $('state').textContent = '高度なし';
+      return;
+    }
+    msg('');
+    filter(a, p.coords.altitudeAccuracy, p.timestamp || Date.now());
+    render();
+  }
+  function onErr(e){
+    var detail = ' (エラー' + e.code + (e.message ? ': ' + e.message : '') + ')';
+    var embedded = false;
+    try { embedded = window.self !== window.top; } catch(x){ embedded = true; }
+    if (e.code === 1) msg((embedded ? 'このページが埋め込み表示のため、位置情報が拒否されています。右上のメニューなどからブラウザ(SafariやChrome)で開き直してください。' : '位置情報が拒否されています。ブラウザとOSの設定で、このサイトの位置情報を許可してください。') + detail);
+    else if (e.code === 2) msg('位置を取得できません。電波の入る場所へ移動してください。' + detail);
+    else msg('位置の取得がタイムアウトしました。もう一度お試しください。' + detail);
+    $('state').textContent = 'エラー';
+  }
+
+  async function requestWake(){
+    try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch(e){}
+  }
+  function releaseWake(){
+    try { if (wake){ wake.release(); wake = null; } } catch(e){}
+  }
+
+  function start(){
+    if (!('geolocation' in navigator)){ msg('このブラウザは位置情報に対応していません。'); return; }
+    msg('');
+    try {
+      var pp = document.permissionsPolicy || document.featurePolicy;
+      if (pp && pp.allowsFeature && !pp.allowsFeature('geolocation')){
+        msg('このページは埋め込み表示のため位置情報を使えません。ブラウザ(SafariやChrome)でこのページを直接開いてください。');
+        $('state').textContent = 'エラー';
+        return;
+      }
+    } catch(x){}
+    $('state').textContent = '取得中';
+    watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    $('toggle').textContent = '計測を停止';
+    requestWake();
+  }
+  function stop(){
+    if (watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+    $('toggle').textContent = '計測を開始';
+    $('state').textContent = '停止中';
+    releaseWake();
+  }
+  $('toggle').addEventListener('click', function(){ watchId === null ? start() : stop(); });
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible' && watchId !== null) requestWake();
+  });
+
+  /* ---- 校正 ---- */
+  var sel = $('calFloor');
+  for (var k = -5; k <= 60; k++){
+    var o = document.createElement('option');
+    o.value = k;
+    o.textContent = k >= 0 ? (k + 1) + '階' : '地下' + (-k) + '階';
+    if (k === (cfg.a !== null ? cfg.k : 0)) o.selected = true;
+    sel.appendChild(o);
+  }
+  $('calBtn').addEventListener('click', function(){
+    if (kf.x === null){ msg('高度を取得してから校正してください。'); return; }
+    cfg.a = kf.x;
+    cfg.k = parseInt(sel.value, 10);
+    curK = cfg.k;
+    save(); msg(''); render();
+  });
+
+  /* ---- 階高 ---- */
+  var hIn = $('h');
+  hIn.value = cfg.h;
+  hIn.addEventListener('change', function(){
+    var v = parseFloat(hIn.value);
+    if (!(v >= 2.5 && v <= 6)){ hIn.value = cfg.h; return; }
+    cfg.h = v; save(); render();
+  });
+
+  /* ---- 模擬データ ---- */
+  $('demoChk').addEventListener('change', function(e){
+    demo = e.target.checked;
+    $('demo').classList.toggle('on', demo);
+    kf = { x: null, P: 0, t: 0 };
+    curK = null;
+    if (demo) feedDemo(); else { $('state').textContent = watchId === null ? '待機中' : '取得中'; }
+  });
+  function feedDemo(){
+    var z = parseFloat($('demoRange').value);
+    if (kf.x === null){ kf.x = z; kf.P = 1; kf.t = Date.now(); }
+    else { kf.x = z; kf.P = 1; kf.t = Date.now(); }
+    render();
+  }
+  $('demoRange').addEventListener('input', function(){ if (demo) feedDemo(); });
+})();
+</script>
+</body>
+</html>
